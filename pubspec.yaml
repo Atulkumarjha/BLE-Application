@@ -1,0 +1,23 @@
+# c:\BLE Clone Application\pubspec.yaml
+name: ble_cloner
+description: BLE Cloner - a Flutter app that discovers BLE profiles and re-advertises them natively on Android.
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  permission_handler: ^11.3.1
+  collection: ^1.18.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

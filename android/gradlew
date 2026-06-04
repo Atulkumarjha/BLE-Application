@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+
+command -v gradle >/dev/null 2>&1 || {
+  echo "Gradle is required to build the Android module. Install Gradle or use Flutter to generate the standard wrapper files." >&2
+  exit 1
+}
+
+gradle "$@"
