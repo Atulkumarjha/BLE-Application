@@ -125,6 +125,16 @@ internal fun Int.toPermissionFlags(): List<String> = buildList {
     if (this@toPermissionFlags and BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED != 0) add("READ_ENCRYPTED")
 }
 
+internal class BleNativeException(
+    val code: String,
+    override val message: String,
+    cause: Throwable? = null
+) : RuntimeException(message, cause)
+
 internal fun normalizeUuid(input: String): String {
     return input.trim().removePrefix("{").removeSuffix("}").uppercase()
 }
+
+internal fun String.normalizeUuid(): String = normalizeUuid(this)
+
+internal fun String.toUuid(): java.util.UUID = java.util.UUID.fromString(this)

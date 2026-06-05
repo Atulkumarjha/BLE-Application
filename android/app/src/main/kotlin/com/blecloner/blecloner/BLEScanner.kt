@@ -22,7 +22,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 internal class BLEScanner(
-    context: Context,
+    private val context: Context,
     private val emitEvent: (Map<String, Any?>) -> Unit,
 ) {
     private val handler = Handler(Looper.getMainLooper())
@@ -120,8 +120,8 @@ internal class BLEScanner(
                 "characteristics" to service.characteristics.map { characteristic ->
                     mapOf(
                         "uuid" to characteristic.uuid.toString().normalizeUuid(),
-                        "properties" to propertiesFromFlags(characteristic.properties),
-                        "permissions" to permissionsFromFlags(characteristic.permissions),
+                        "properties" to characteristic.properties.toPropertyFlags(),
+                        "permissions" to characteristic.permissions.toPermissionFlags(),
                         "value" to characteristic.value?.let { String(it, Charsets.UTF_8) },
                     )
                 },
