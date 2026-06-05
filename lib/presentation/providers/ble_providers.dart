@@ -63,7 +63,9 @@ class BleScannerNotifier extends StateNotifier<BleScannerState> {
     final permissions = await _repository.checkPermissions();
     final hasPermission = permissions.values.every((value) => value);
     if (!hasPermission) {
-      state = state.copyWith(errorMessage: 'Bluetooth permission required');
+      await _repository.requestPermissions();
+      // We don't wait for the result here because it's handled via the activity listener in native
+      // and we check again when startScan is called next time, or through adapter state events.
       return;
     }
     try {

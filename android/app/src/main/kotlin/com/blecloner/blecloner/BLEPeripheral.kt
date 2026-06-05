@@ -23,7 +23,7 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 
 internal class BLEPeripheral(
-    context: Context,
+    private val context: Context,
     private val emitEvent: (Map<String, Any?>) -> Unit,
 ) {
     private val handler = Handler(Looper.getMainLooper())
