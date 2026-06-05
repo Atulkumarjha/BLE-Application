@@ -1,3 +1,58 @@
+# BLE Cloner — Local run & test
+
+This repository contains the Flutter frontend and Android native Kotlin plugin for the BLE Cloner app.
+
+Local test helper scripts
+- PowerShell (Windows): `tools/run_local_tests.ps1`
+- POSIX (macOS / Linux): `tools/run_local_tests.sh`
+
+Quick steps to run locally
+1. Install Flutter and Android SDK and ensure `flutter` is on your PATH.
+2. From the project root run the helper script for your platform to perform checks and create `logs/`:
+
+Windows (PowerShell):
+
+```powershell
+.\tools\run_local_tests.ps1
+```
+
+macOS / Linux:
+
+```bash
+./tools/run_local_tests.sh
+```
+
+3. If the script shows `gradle-wrapper.jar` is missing, either open the project in Android Studio (it will generate the wrapper) or run `gradle wrapper` from the `android` folder on a machine that has Gradle installed.
+4. Run the app and capture logs (recommended):
+
+```bash
+# capture flutter output
+flutter run -d <device-id> | tee logs/flutter_run.log
+
+# capture Android system logs
+adb logcat -v time > logs/adb_logcat.log
+```
+
+5. Reproduce the BLE flow (scan, connect, clone). Attach the two log files from `logs/` here and I'll analyze them.
+
+If you want, I can produce a short PowerShell/Batch wrapper to run both `flutter run` and `adb logcat` concurrently and save logs automatically — tell me which OS/device you're using and I will add it.
+
+APK install & log helper
+After the GitHub Actions workflow completes you can download the `app-debug-apk` artifact and install it. I added helper scripts to simplify installing and capturing logs:
+
+Windows (PowerShell):
+
+```powershell
+.\tools\install_and_log.ps1 -ApkPath C:\path\to\app-debug.apk
+```
+
+macOS / Linux:
+
+```bash
+./tools/install_and_log.sh path/to/app-debug.apk
+```
+
+The scripts will install the APK to the first connected device and stream logs to `logs/adb_logcat.log`.
 <!-- c:\BLE Clone Application\README.md -->
 # BLE Cloner
 
@@ -15,6 +70,15 @@ A Flutter app that discovers nearby BLE peripherals, reads their GATT profile, a
 
 ```bash
 flutter pub get
+```
+
+### Android local.properties
+
+Create `android/local.properties` locally if Flutter has not already done so. It should point to your Flutter SDK and Android SDK, for example:
+
+```properties
+flutter.sdk=C:\src\flutter
+sdk.dir=C:\Users\YOUR_USER\AppData\Local\Android\Sdk
 ```
 
 ### Android permissions
@@ -109,3 +173,4 @@ UUIDs are normalized to uppercase strings with braces removed before they are pe
 
 - Native Android entry is registered from `MainActivity.kt` via the in-app `BLEPlugin`.
 - No pre-made Flutter BLE package is used for the core BLE flow.# BLE-Application
+- No pre-made Flutter BLE package is used for the core BLE flow.
