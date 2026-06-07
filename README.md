@@ -2,7 +2,7 @@
 
 A Flutter application that discovers nearby BLE peripherals, resolves their full GATT profiles, and re-advertises the discovered structure as an Android BLE peripheral. This project is built **without** any third-party BLE plugins, using 100% native Kotlin implementation for the core BLE logic.
 
-## 🚀 Setup & Run
+## Setup & Run
 
 ### Prerequisites
 - **Flutter SDK**: v3.22.0 or newer.
@@ -17,7 +17,7 @@ A Flutter application that discovers nearby BLE peripherals, resolves their full
 5. Ensure **Bluetooth** and **Location (GPS)** are turned **ON** globally on the phone.
 6. Click the **Green Play button** in Android Studio to build and run the app.
 
-## 🏗️ Architecture & MethodChannel Mapping
+##  Architecture & MethodChannel Mapping
 
 The project follows a **Clean Architecture** approach to bridge the Flutter UI with the native Android Bluetooth stack.
 
@@ -41,7 +41,7 @@ The native layer uses an `EventChannel` to stream asynchronous updates back to F
 - `adapter_state`: Emitted when Bluetooth is toggled ON/OFF.
 - `peripheral_state`: Emitted when the advertising status changes.
 
-## 📱 Platform-Specific Limitations
+## Platform-Specific Limitations
 
 During development, several native Android behaviors were addressed:
 
@@ -61,4 +61,3 @@ During development, several native Android behaviors were addressed:
    To ensure clean interop, extension functions in Kotlin were carefully named to avoid signature clashes when compiled to JVM byte-code, ensuring a stable build environment.
 
 ---
-**Note**: All BLE operations are written natively in [BLEScanner.kt](android/app/src/main/kotlin/com/blecloner/blecloner/BLEScanner.kt) and [BLEPeripheral.kt](android/app/src/main/kotlin/com/blecloner/blecloner/BLEPeripheral.kt) using standard `android.bluetooth` APIs.
