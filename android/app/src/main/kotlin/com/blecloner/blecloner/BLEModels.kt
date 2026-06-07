@@ -33,7 +33,7 @@ internal data class BleCharacteristicProfile(
     val value: String? = null,
 ) {
     fun toMap(): Map<String, Any?> = mapOf(
-        "uuid" to normalizeUuid(uuid),
+        "uuid" to uuid.normalizeUuid(),
         "properties" to properties.map { it.trim().uppercase() },
         "permissions" to permissions.map { it.trim().uppercase() },
         "value" to value,
@@ -45,7 +45,7 @@ internal data class BleServiceProfile(
     val characteristics: List<BleCharacteristicProfile>,
 ) {
     fun toMap(): Map<String, Any?> = mapOf(
-        "uuid" to normalizeUuid(uuid),
+        "uuid" to uuid.normalizeUuid(),
         "characteristics" to characteristics.map { it.toMap() },
     )
 }
@@ -131,10 +131,8 @@ internal class BleNativeException(
     cause: Throwable? = null
 ) : RuntimeException(message, cause)
 
-internal fun normalizeUuid(input: String): String {
-    return input.trim().removePrefix("{").removeSuffix("}").uppercase()
+internal fun String.normalizeUuid(): String {
+    return this.trim().removePrefix("{").removeSuffix("}").uppercase()
 }
-
-internal fun String.normalizeUuid(): String = normalizeUuid(this)
 
 internal fun String.toUuid(): java.util.UUID = java.util.UUID.fromString(this)

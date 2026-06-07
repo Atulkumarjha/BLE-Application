@@ -17,6 +17,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.core.content.ContextCompat
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -31,10 +32,14 @@ internal class BLEScanner(
     private var callback: ScanCallback? = null
     private var activeGatt: BluetoothGatt? = null
 
-    fun adapterState(): String = when (adapter?.state) {
-        BluetoothAdapter.STATE_ON -> "on"
-        BluetoothAdapter.STATE_OFF -> "off"
-        else -> "unauthorized"
+    fun adapterState(): String {
+        val adapter = adapter ?: return "unauthorized"
+        if (!hasScanPermission() || !hasConnectPermission()) return "unauthorized"
+        return when (adapter.state) {
+            BluetoothAdapter.STATE_ON -> "on"
+            BluetoothAdapter.STATE_OFF -> "off"
+            else -> "off"
+        }
     }
 
     fun emitAdapterState() {
@@ -50,6 +55,7 @@ internal class BLEScanner(
         stopScan()
         callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
+                Log.d("BLEScanner", "Found device: ${result.device.address} RSSI: ${result.rssi}")
                 val device = result.device
                 postEvent(
                     mapOf(
@@ -62,8 +68,19 @@ internal class BLEScanner(
                     ),
                 )
             }
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.e("BLEScanner", "Scan failed with error code: $errorCode")
+            }
         }
-        scanner.startScan(null, ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), callback)
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
+            .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
+            .setReportDelay(0L)
+            .build()
+        scanner.startScan(null, settings, callback)
         postEvent(mapOf("type" to BleEventTypes.SCAN_STATE, "scanning" to true))
     }
 
@@ -76,41 +93,53 @@ internal class BLEScanner(
 
     @SuppressLint("MissingPermission")
     fun connectAndDiscover(deviceId: String): Map<String, Any?> {
+        Log.d("BLEScanner", "Starting connectAndDiscover for: $deviceId")
         val bluetoothAdapter = adapter ?: throw BleNativeException(BleErrorCodes.GATT_FAILURE, "Could not read device profile")
         if (!hasConnectPermission()) throw BleNativeException(BleErrorCodes.PERMISSION_DENIED, "Bluetooth permission required")
         val device = bluetoothAdapter.getRemoteDevice(deviceId)
         val latch = CountDownLatch(1)
         var profile: Map<String, Any?>? = null
         var failure: BleNativeException? = null
+
         activeGatt = device.connectGatt(context, false, object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                Log.d("BLEScanner", "onConnectionStateChange: status=$status, newState=$newState")
                 if (status != BluetoothGatt.GATT_SUCCESS || newState != BluetoothProfile.STATE_CONNECTED) {
-                    failure = BleNativeException(BleErrorCodes.GATT_FAILURE, "Could not read device profile")
+                    failure = BleNativeException(BleErrorCodes.GATT_FAILURE, "Connection failed with status $status")
                     latch.countDown()
                     gatt.close()
                     return
                 }
+                Log.d("BLEScanner", "Connected, starting service discovery...")
                 gatt.discoverServices()
             }
 
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+                Log.d("BLEScanner", "onServicesDiscovered: status=$status")
                 if (status != BluetoothGatt.GATT_SUCCESS) {
-                    failure = BleNativeException(BleErrorCodes.GATT_FAILURE, "Could not read device profile")
+                    failure = BleNativeException(BleErrorCodes.GATT_FAILURE, "Service discovery failed with status $status")
                 } else {
+                    Log.d("BLEScanner", "Services discovered, mapping profile...")
                     profile = gatt.toProfileMap()
+                    Log.d("BLEScanner", "Profile map created successfully")
                 }
                 latch.countDown()
                 gatt.close()
             }
         })
-        if (!latch.await(15, TimeUnit.SECONDS)) {
+
+        if (!latch.await(20, TimeUnit.SECONDS)) {
+            Log.e("BLEScanner", "Timeout waiting for GATT discovery")
             activeGatt?.close()
             activeGatt = null
-            throw BleNativeException(BleErrorCodes.GATT_FAILURE, "Could not read device profile")
+            throw BleNativeException(BleErrorCodes.GATT_FAILURE, "Timeout reading device profile")
         }
         activeGatt = null
-        failure?.let { throw it }
-        return profile ?: throw BleNativeException(BleErrorCodes.GATT_FAILURE, "Could not read device profile")
+        failure?.let { 
+            Log.e("BLEScanner", "GATT operation failed: ${it.message}")
+            throw it 
+        }
+        return profile ?: throw BleNativeException(BleErrorCodes.GATT_FAILURE, "Profile is null after discovery")
     }
 
     private fun BluetoothGatt.toProfileMap(): Map<String, Any?> {

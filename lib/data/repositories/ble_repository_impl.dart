@@ -109,12 +109,20 @@ class BleRepositoryImpl implements BleRepository {
   }
 
   Map<String, dynamic> _asStringKeyMap(dynamic value) {
-    if (value is Map<String, dynamic>) {
-      return value;
+    if (value is! Map) {
+      return <String, dynamic>{};
     }
-    if (value is Map) {
-      return value.map((key, dynamic entry) => MapEntry(key.toString(), entry));
-    }
-    return <String, dynamic>{};
+    return value.map((key, dynamic val) {
+      final String stringKey = key.toString();
+      if (val is Map) {
+        return MapEntry(stringKey, _asStringKeyMap(val));
+      } else if (val is List) {
+        return MapEntry(
+          stringKey,
+          val.map((dynamic item) => item is Map ? _asStringKeyMap(item) : item).toList(),
+        );
+      }
+      return MapEntry(stringKey, val);
+    });
   }
 }

@@ -61,11 +61,14 @@ class BleScannerNotifier extends StateNotifier<BleScannerState> {
 
   Future<void> startScan() async {
     final permissions = await _repository.checkPermissions();
-    final hasPermission = permissions.values.every((value) => value);
+    // On Android 12+, we need scan, connect, and advertise.
+    // On older versions, we just need location.
+    final hasPermission = permissions['scan'] == true &&
+                          permissions['connect'] == true &&
+                          permissions['location'] == true;
+
     if (!hasPermission) {
       await _repository.requestPermissions();
-      // We don't wait for the result here because it's handled via the activity listener in native
-      // and we check again when startScan is called next time, or through adapter state events.
       return;
     }
     try {

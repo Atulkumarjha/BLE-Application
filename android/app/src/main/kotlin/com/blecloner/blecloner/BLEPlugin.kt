@@ -59,7 +59,7 @@ internal class BLEPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Event
             context,
             adapterReceiver,
             IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
+            ContextCompat.RECEIVER_EXPORTED,
         )
         scanner.emitAdapterState()
     }
@@ -111,13 +111,17 @@ internal class BLEPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Event
     }
 
     private fun checkPermissions(): Map<String, Boolean> {
-        val scan = hasPermission(permissionForScan())
-        val connect = hasPermission(permissionForConnect())
-        val advertise = hasPermission(permissionForAdvertise())
-        val location = hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+        val scan = hasPermission(Manifest.permission.BLUETOOTH_SCAN)
+        val connect = hasPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        val advertise = hasPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
+        val fineLocation = hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarseLocation = hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+
+        Log.d("BLEPlugin", "Permissions Check: SCAN=$scan, CONNECT=$connect, ADVERTISE=$advertise, FINE=$fineLocation, COARSE=$coarseLocation")
+
         return mapOf(
             "bluetooth" to (scan && connect && advertise),
-            "location" to location,
+            "location" to (fineLocation || coarseLocation),
             "scan" to scan,
             "connect" to connect,
             "advertise" to advertise,
@@ -126,12 +130,21 @@ internal class BLEPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Event
 
     private fun requestPermissions() {
         val permissions = mutableListOf<String>()
-        if (!hasPermission(permissionForScan())) permissions += permissionForScan()
-        if (!hasPermission(permissionForConnect())) permissions += permissionForConnect()
-        if (!hasPermission(permissionForAdvertise())) permissions += permissionForAdvertise()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!hasPermission(Manifest.permission.BLUETOOTH_SCAN)) permissions += Manifest.permission.BLUETOOTH_SCAN
+            if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) permissions += Manifest.permission.BLUETOOTH_CONNECT
+            if (!hasPermission(Manifest.permission.BLUETOOTH_ADVERTISE)) permissions += Manifest.permission.BLUETOOTH_ADVERTISE
+        } else {
+            if (!hasPermission(Manifest.permission.BLUETOOTH)) permissions += Manifest.permission.BLUETOOTH
+            if (!hasPermission(Manifest.permission.BLUETOOTH_ADMIN)) permissions += Manifest.permission.BLUETOOTH_ADMIN
+        }
+        
         if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) permissions += Manifest.permission.ACCESS_FINE_LOCATION
+        if (!hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)) permissions += Manifest.permission.ACCESS_COARSE_LOCATION
+        
         val currentActivity = activity ?: return
         if (permissions.isNotEmpty()) {
+            Log.d("BLEPlugin", "Requesting permissions: $permissions")
             ActivityCompat.requestPermissions(currentActivity, permissions.distinct().toTypedArray(), 9001)
         }
     }
@@ -162,7 +175,9 @@ internal class BLEPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Event
         activity = binding.activity
         binding.addRequestPermissionsResultListener { _, _, grantResults ->
             val granted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            if (!granted) {
+            if (granted) {
+                scanner.emitAdapterState()
+            } else {
                 postEvent(mapOf("type" to BleEventTypes.ADAPTER_STATE, "state" to "unauthorized"))
             }
             true
