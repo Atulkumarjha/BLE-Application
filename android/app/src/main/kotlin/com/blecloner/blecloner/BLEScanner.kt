@@ -96,7 +96,28 @@ internal class BLEScanner(
         Log.d("BLEScanner", "Starting connectAndDiscover for: $deviceId")
         val bluetoothAdapter = adapter ?: throw BleNativeException(BleErrorCodes.GATT_FAILURE, "Could not read device profile")
         if (!hasConnectPermission()) throw BleNativeException(BleErrorCodes.PERMISSION_DENIED, "Bluetooth permission required")
-        val device = bluetoothAdapter.getRemoteDevice(deviceId)
+        
+        var lastFailure: BleNativeException? = null
+        
+        // Retry logic: Attempt connection up to 3 times
+        for (attempt in 1..3) {
+            Log.d("BLEScanner", "Connection attempt $attempt for $deviceId")
+            try {
+                return performDiscovery(bluetoothAdapter, deviceId)
+            } catch (e: BleNativeException) {
+                lastFailure = e
+                Log.w("BLEScanner", "Attempt $attempt failed: ${e.message}")
+                // Short delay before retrying
+                Thread.sleep(1000)
+            }
+        }
+        
+        throw lastFailure ?: BleNativeException(BleErrorCodes.GATT_FAILURE, "Failed after 3 attempts")
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun performDiscovery(adapter: BluetoothAdapter, deviceId: String): Map<String, Any?> {
+        val device = adapter.getRemoteDevice(deviceId)
         val latch = CountDownLatch(1)
         var profile: Map<String, Any?>? = null
         var failure: BleNativeException? = null
@@ -104,14 +125,23 @@ internal class BLEScanner(
         activeGatt = device.connectGatt(context, false, object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                 Log.d("BLEScanner", "onConnectionStateChange: status=$status, newState=$newState")
+                
+                if (status == 133) {
+                    Log.w("BLEScanner", "Status 133 detected. Attempting to refresh cache...")
+                    refreshDeviceCache(gatt)
+                }
+
                 if (status != BluetoothGatt.GATT_SUCCESS || newState != BluetoothProfile.STATE_CONNECTED) {
                     failure = BleNativeException(BleErrorCodes.GATT_FAILURE, "Connection failed with status $status")
                     latch.countDown()
                     gatt.close()
                     return
                 }
-                Log.d("BLEScanner", "Connected, starting service discovery...")
-                gatt.discoverServices()
+                
+                // Small delay often helps service discovery stability on some Android versions
+                Handler(Looper.getMainLooper()).postDelayed({
+                    gatt.discoverServices()
+                }, 500)
             }
 
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
@@ -119,27 +149,34 @@ internal class BLEScanner(
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     failure = BleNativeException(BleErrorCodes.GATT_FAILURE, "Service discovery failed with status $status")
                 } else {
-                    Log.d("BLEScanner", "Services discovered, mapping profile...")
                     profile = gatt.toProfileMap()
-                    Log.d("BLEScanner", "Profile map created successfully")
                 }
                 latch.countDown()
                 gatt.close()
             }
         })
 
-        if (!latch.await(20, TimeUnit.SECONDS)) {
-            Log.e("BLEScanner", "Timeout waiting for GATT discovery")
+        if (!latch.await(25, TimeUnit.SECONDS)) {
             activeGatt?.close()
             activeGatt = null
             throw BleNativeException(BleErrorCodes.GATT_FAILURE, "Timeout reading device profile")
         }
+        
         activeGatt = null
-        failure?.let { 
-            Log.e("BLEScanner", "GATT operation failed: ${it.message}")
-            throw it 
+        failure?.let { throw it }
+        return profile ?: throw BleNativeException(BleErrorCodes.GATT_FAILURE, "Profile null")
+    }
+
+    private fun refreshDeviceCache(gatt: BluetoothGatt): Boolean {
+        return try {
+            val method = gatt.javaClass.getMethod("refresh")
+            val success = method.invoke(gatt) as Boolean
+            Log.d("BLEScanner", "Cache refresh result: $success")
+            success
+        } catch (e: Exception) {
+            Log.e("BLEScanner", "An error occurred while refreshing device cache", e)
+            false
         }
-        return profile ?: throw BleNativeException(BleErrorCodes.GATT_FAILURE, "Profile is null after discovery")
     }
 
     private fun BluetoothGatt.toProfileMap(): Map<String, Any?> {
