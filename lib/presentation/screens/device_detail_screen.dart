@@ -68,13 +68,13 @@ class DeviceDetailScreen extends ConsumerWidget {
     final modifiedProfile = profile.copyWith(
       services: [
         ...profile.services,
-        const BleService(
+        BleService(
           uuid: '0000A701-0000-1000-8000-00805F9B34FB', // Custom "Atul" Service
           characteristics: [
             BleCharacteristic(
               uuid: '0000A702-0000-1000-8000-00805F9B34FB', // Custom Message Char
-              properties: ['READ'],
-              permissions: ['READ'],
+              properties: const ['READ'],
+              permissions: const ['READ'],
               value: "Hi! I'm Atul and I'm successfully connected to your phone",
             ),
           ],
