@@ -68,8 +68,6 @@ class BleScannerNotifier extends StateNotifier<BleScannerState> {
 
   Future<void> startScan() async {
     final permissions = await _repository.checkPermissions();
-    // On Android 12+, we need scan, connect, and advertise.
-    // On older versions, we just need location.
     final hasPermission = permissions['scan'] == true &&
                           permissions['connect'] == true &&
                           permissions['location'] == true;
@@ -96,6 +94,7 @@ class BleScannerNotifier extends StateNotifier<BleScannerState> {
   void _handleEvent(Map<String, dynamic> event) {
     final type = event['type']?.toString();
     if (type == 'device_found') {
+      if (!mounted) return;
       final device = BleDevice.fromJson(
         event['device'] as Map<String, dynamic>? ?? <String, dynamic>{},
       );
@@ -189,28 +188,41 @@ class BlePeripheralNotifier extends StateNotifier<BlePeripheralState> {
       final list = service['characteristics'] as List<dynamic>? ?? const <dynamic>[];
       return total + list.length;
     });
-    state = state.copyWith(
-      serviceCount: services.length,
-      characteristicCount: characteristicCount,
-    );
+
+    if (mounted) {
+      state = state.copyWith(
+        serviceCount: services.length,
+        characteristicCount: characteristicCount,
+      );
+    }
+
     try {
       await _repository.startPeripheral(profile);
-      state = state.copyWith(advertising: true, errorMessage: null);
+      if (mounted) {
+        state = state.copyWith(advertising: true, errorMessage: null);
+      }
     } on BleOperationException catch (error) {
-      state = state.copyWith(advertising: false, errorMessage: error.message);
+      if (mounted) {
+        state = state.copyWith(advertising: false, errorMessage: error.message);
+      }
     }
   }
 
   Future<void> stop() async {
     try {
       await _repository.stopPeripheral();
-      state = state.copyWith(advertising: false, errorMessage: null);
+      if (mounted) {
+        state = state.copyWith(advertising: false, errorMessage: null);
+      }
     } on BleOperationException catch (error) {
-      state = state.copyWith(errorMessage: error.message);
+      if (mounted) {
+        state = state.copyWith(errorMessage: error.message);
+      }
     }
   }
 
   void _handleEvent(Map<String, dynamic> event) {
+    if (!mounted) return;
     if (event['type']?.toString() == 'peripheral_state') {
       state = state.copyWith(
         advertising: event['advertising'] == true,
@@ -234,15 +246,14 @@ final bleDeviceProvider = FutureProvider.family<BleDevice, String>((ref, deviceI
 /// Binds the scanner state notifier to the repository.
 final bleScannerProvider =
     StateNotifierProvider.autoDispose<BleScannerNotifier, BleScannerState>((ref) {
-  final notifier = BleScannerNotifier(ref.read(bleRepositoryProvider));
-  ref.onDispose(notifier.dispose);
-  return notifier;
+  return BleScannerNotifier(ref.read(bleRepositoryProvider));
 });
 
 /// Binds the peripheral state notifier to the repository.
+/// 
+/// Removed autoDispose to ensure broadcasting continues during 
+/// screen transitions until explicitly stopped.
 final blePeripheralProvider =
-    StateNotifierProvider.autoDispose<BlePeripheralNotifier, BlePeripheralState>((ref) {
-  final notifier = BlePeripheralNotifier(ref.read(bleRepositoryProvider));
-  ref.onDispose(notifier.dispose);
-  return notifier;
+    StateNotifierProvider<BlePeripheralNotifier, BlePeripheralState>((ref) {
+  return BlePeripheralNotifier(ref.read(bleRepositoryProvider));
 });
