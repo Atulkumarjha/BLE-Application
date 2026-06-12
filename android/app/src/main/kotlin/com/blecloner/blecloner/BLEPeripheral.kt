@@ -2,6 +2,7 @@
 
 package com.blecloner.blecloner
 
+import android.util.Log
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -50,7 +51,12 @@ internal class BLEPeripheral(
             
         gattServer = bluetoothManager.openGattServer(context, object : BluetoothGattServerCallback() {
             override fun onConnectionStateChange(device: android.bluetooth.BluetoothDevice, status: Int, newState: Int) {
-                Log.d("BLEPeripheral", "GATT Server: Connection state changed for ${device.address}. Status: $status, NewState: $newState")
+                val deviceName = try { device.name ?: "Unknown" } catch (e: SecurityException) { "Unknown" }
+                Log.d("BLEPeripheral", "GATT Server: Connection state changed for $deviceName (${device.address}). Status: $status, NewState: $newState")
+                
+                if (newState == android.bluetooth.BluetoothProfile.STATE_CONNECTED) {
+                    Log.i("BLEPeripheral", "⭐⭐⭐ AUTOMATIC SUCCESS: $deviceName is now connected! Serving message: Hi! I'm Atul... ⭐⭐⭐")
+                }
             }
 
             override fun onCharacteristicReadRequest(
@@ -59,7 +65,13 @@ internal class BLEPeripheral(
                 offset: Int,
                 characteristic: BluetoothGattCharacteristic,
             ) {
-                Log.d("BLEPeripheral", "GATT Server: Read request for ${characteristic.uuid} from ${device.address}")
+                val deviceName = try { device.name ?: "Unknown" } catch (e: SecurityException) { "Unknown" }
+                Log.d("BLEPeripheral", "GATT Server: $deviceName (${device.address}) is READING characteristic: ${characteristic.uuid}")
+                
+                if (characteristic.uuid.toString().uppercase().contains("A702")) {
+                    Log.i("BLEPeripheral", "SUCCESS: $deviceName has just read your custom message!")
+                }
+
                 val value = valueStore[characteristic.uuid.toString()] ?: ByteArray(0)
                 gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
             }
