@@ -63,11 +63,30 @@ class DeviceDetailScreen extends ConsumerWidget {
 
   Future<void> _cloneDevice(BuildContext context, WidgetRef ref, BleDevice profile) async {
     await ref.read(bleScannerProvider.notifier).stopScan();
+    
+    // Add a custom "Atul's Message" service to the profile before cloning
+    final modifiedProfile = profile.copyWith(
+      services: [
+        ...profile.services,
+        const BleService(
+          uuid: '0000A701-0000-1000-8000-00805F9B34FB', // Custom "Atul" Service
+          characteristics: [
+            BleCharacteristic(
+              uuid: '0000A702-0000-1000-8000-00805F9B34FB', // Custom Message Char
+              properties: ['READ'],
+              permissions: ['READ'],
+              value: "Hi! I'm Atul and I'm successfully connected to your phone",
+            ),
+          ],
+        ),
+      ],
+    );
+
     try {
-      await ref.read(blePeripheralProvider.notifier).start(profile.toJson());
+      await ref.read(blePeripheralProvider.notifier).start(modifiedProfile.toJson());
       if (!context.mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => CloneScreen(profile: profile)),
+        MaterialPageRoute<void>(builder: (_) => CloneScreen(profile: modifiedProfile)),
       );
     } on Object catch (error) {
       if (!context.mounted) return;
