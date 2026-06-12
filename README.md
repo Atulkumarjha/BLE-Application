@@ -17,7 +17,28 @@ A Flutter application that discovers nearby BLE peripherals, resolves their full
 5. Ensure **Bluetooth** and **Location (GPS)** are turned **ON** globally on the phone.
 6. Click the **Green Play button** in Android Studio to build and run the app.
 
-##  Architecture & MethodChannel Mapping
+## Verification Guide (nRF Connect)
+
+To confirm 100% that the native cloning and advertising are successful, use a second device as a receiver.
+
+### Steps to Verify:
+1. **Primary Phone (Transmitter)**:
+   - Run the BLE Cloner app.
+   - Tap **"Start Scan"** and select a nearby device.
+   - Tap **"Clone This Device"**. The screen will show "Advertising active".
+2. **Secondary Phone (Receiver)**:
+   - Install and open the **nRF Connect for Mobile** app.
+   - Tap **"Scan"**. Your primary phone will appear in the list.
+   - Tap **"CONNECT"**.
+3. **Verify Profile**:
+   - Once connected, nRF Connect will list the Services. 
+   - Verify that the Service UUIDs match the device originally scanned by the primary phone.
+4. **Read Custom Message**:
+   - In nRF Connect, find the custom service starting with **`A701`**.
+   - Tap the **Download/Read icon** (down arrow) next to characteristic **`A702`**.
+   - **Success**: The receiver will display your personalized message: *"Hi! I'm Atul and I'm successfully connected to your phone"*.
+
+## Architecture & MethodChannel Mapping
 
 The project follows a **Clean Architecture** approach to bridge the Flutter UI with the native Android Bluetooth stack.
 
