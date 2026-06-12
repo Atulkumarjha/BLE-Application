@@ -35,20 +35,31 @@ internal class BLEPeripheral(
 
     @SuppressLint("MissingPermission")
     fun startPeripheral(profile: Map<String, Any?>) {
+        Log.d("BLEPeripheral", "Starting peripheral for profile: ${profile["id"]}")
         stopPeripheral()
+        
         val bluetoothAdapter = adapter ?: throw BleNativeException(BleErrorCodes.BLUETOOTH_OFF, "Bluetooth adapter unavailable")
         if (!bluetoothAdapter.isEnabled) throw BleNativeException(BleErrorCodes.BLUETOOTH_OFF, "Please enable Bluetooth")
         if (!hasAdvertisePermission()) throw BleNativeException(BleErrorCodes.PERMISSION_DENIED, "Bluetooth permission required")
+        
         val parsedProfile = BleDeviceProfile.fromMap(profile)
+        Log.d("BLEPeripheral", "Parsed profile with ${parsedProfile.services.size} services")
+        
         val bluetoothAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
-            ?: throw BleNativeException(BleErrorCodes.ADVERTISE_FAILED, "Could not start peripheral mode")
+            ?: throw BleNativeException(BleErrorCodes.ADVERTISE_FAILED, "Could not start peripheral mode: Advertiser null")
+            
         gattServer = bluetoothManager.openGattServer(context, object : BluetoothGattServerCallback() {
+            override fun onConnectionStateChange(device: android.bluetooth.BluetoothDevice, status: Int, newState: Int) {
+                Log.d("BLEPeripheral", "GATT Server: Connection state changed for ${device.address}. Status: $status, NewState: $newState")
+            }
+
             override fun onCharacteristicReadRequest(
                 device: android.bluetooth.BluetoothDevice,
                 requestId: Int,
                 offset: Int,
                 characteristic: BluetoothGattCharacteristic,
             ) {
+                Log.d("BLEPeripheral", "GATT Server: Read request for ${characteristic.uuid} from ${device.address}")
                 val value = valueStore[characteristic.uuid.toString()] ?: ByteArray(0)
                 gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
             }
@@ -62,12 +73,18 @@ internal class BLEPeripheral(
                 offset: Int,
                 value: ByteArray,
             ) {
+                Log.d("BLEPeripheral", "GATT Server: Write request for ${characteristic.uuid} size: ${value.size}")
                 valueStore[characteristic.uuid.toString()] = value
                 if (responseNeeded) {
                     gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
                 }
             }
-        }) ?: throw BleNativeException(BleErrorCodes.ADVERTISE_FAILED, "Could not start peripheral mode")
+
+            override fun onServiceAdded(status: Int, service: BluetoothGattService) {
+                Log.d("BLEPeripheral", "GATT Server: Service added ${service.uuid}. Status: $status")
+            }
+        }) ?: throw BleNativeException(BleErrorCodes.ADVERTISE_FAILED, "Could not open GATT Server")
+
         parsedProfile.services.forEach { serviceProfile ->
             val service = BluetoothGattService(serviceProfile.uuid.toUuid(), BluetoothGattService.SERVICE_TYPE_PRIMARY)
             serviceProfile.characteristics.forEach { characteristicProfile ->
@@ -84,16 +101,25 @@ internal class BLEPeripheral(
             }
             gattServer?.addService(service)
         }
+
         val advertiseData = AdvertiseData.Builder()
             .setIncludeDeviceName(true)
-            .apply { parsedProfile.services.firstOrNull()?.let { addServiceUuid(android.os.ParcelUuid(it.uuid.toUuid())) } }
+            .apply { 
+                parsedProfile.services.firstOrNull()?.let { 
+                    addServiceUuid(android.os.ParcelUuid(it.uuid.toUuid()))
+                    Log.d("BLEPeripheral", "Including Service UUID in advertisement: ${it.uuid}")
+                } 
+            }
             .build()
+
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
             .setConnectable(true)
             .build()
+
         advertiser = bluetoothAdvertiser
+        Log.d("BLEPeripheral", "Starting Advertising...")
         advertiser?.startAdvertising(settings, advertiseData, advertiseCallback)
     }
 
@@ -109,16 +135,18 @@ internal class BLEPeripheral(
 
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartFailure(errorCode: Int) {
+            Log.e("BLEPeripheral", "Advertising failed with error code: $errorCode")
             postEvent(
                 mapOf(
                     "type" to BleEventTypes.PERIPHERAL_STATE,
                     "advertising" to false,
-                    "error" to "Could not start peripheral mode",
+                    "error" to "Could not start peripheral mode (Error: $errorCode)",
                 ),
             )
         }
 
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+            Log.d("BLEPeripheral", "Advertising started successfully!")
             postEvent(mapOf("type" to BleEventTypes.PERIPHERAL_STATE, "advertising" to true))
         }
     }
