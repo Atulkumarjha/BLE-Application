@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/ble_repository_impl.dart';
 import '../../domain/models/ble_device.dart';
+import '../../domain/models/ble_service.dart';
+import '../../domain/models/ble_characteristic.dart';
 import '../providers/ble_providers.dart';
 import '../widgets/service_expansion_tile.dart';
 import 'clone_screen.dart';
