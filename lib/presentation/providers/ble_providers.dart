@@ -59,6 +59,13 @@ class BleScannerNotifier extends StateNotifier<BleScannerState> {
   final BleRepository _repository;
   late final StreamSubscription<Map<String, dynamic>> _subscription;
 
+  @override
+  set state(BleScannerState value) {
+    if (mounted) {
+      super.state = value;
+    }
+  }
+
   Future<void> startScan() async {
     final permissions = await _repository.checkPermissions();
     // On Android 12+, we need scan, connect, and advertise.
@@ -166,6 +173,13 @@ class BlePeripheralNotifier extends StateNotifier<BlePeripheralState> {
 
   final BleRepository _repository;
   late final StreamSubscription<Map<String, dynamic>> _subscription;
+
+  @override
+  set state(BlePeripheralState value) {
+    if (mounted) {
+      super.state = value;
+    }
+  }
 
   Future<void> start(Map<String, dynamic> profile) async {
     final services = (profile['services'] as List<dynamic>? ?? const <dynamic>[])
